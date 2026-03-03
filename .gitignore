@@ -1,4 +1,5 @@
 .worktrees/
+.vscode/
 
 # Build artifacts
 build/

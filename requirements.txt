@@ -1,7 +1,6 @@
 pywebview
-pix2tex[gui]
+texify
 Pillow
 pyperclip
 torch
-torchvision
 flask
