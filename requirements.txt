@@ -1,0 +1,6 @@
+pywebview
+pix2tex[gui]
+Pillow
+pyperclip
+torch
+torchvision
