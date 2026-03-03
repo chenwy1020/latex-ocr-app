@@ -3,18 +3,22 @@ import os
 import webview
 from flask import Flask, render_template
 
-# Add the project root to sys.path to allow imports from src
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# Determine base path: PyInstaller sets sys._MEIPASS for bundled apps
+if getattr(sys, 'frozen', False):
+    base_dir = sys._MEIPASS
+    src_dir = os.path.join(base_dir, 'src')
+else:
+    src_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(src_dir)
+    if base_dir not in sys.path:
+        sys.path.insert(0, base_dir)
 
 from src.api import Api
 
 # Create Flask app with correct template and static folders
 app = Flask(__name__,
-            template_folder=os.path.join(current_dir, 'templates'),
-            static_folder=os.path.join(current_dir, 'static'))
+            template_folder=os.path.join(src_dir, 'templates'),
+            static_folder=os.path.join(src_dir, 'static'))
 
 @app.route('/')
 def index():
@@ -23,7 +27,7 @@ def index():
 def main():
     api = Api()
     webview.create_window('LaTeX OCR', app, js_api=api, width=1000, height=700)
-    webview.start(debug=True)
+    webview.start(debug=False)
 
 if __name__ == '__main__':
     main()
