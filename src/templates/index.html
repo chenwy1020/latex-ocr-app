@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX OCR</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="panel input-panel">
+            <h2>Input</h2>
+            <div id="drop-zone" class="drop-zone">
+                <p>Drag & Drop Image Here</p>
+                <p>or</p>
+                <input type="file" id="file-input" accept="image/*">
+                <button id="paste-btn" class="btn">Paste from Clipboard</button>
+            </div>
+        </div>
+        <div class="panel output-panel">
+            <h2>Output</h2>
+            <div class="output-controls">
+                <button id="copy-btn" class="btn">Copy LaTeX</button>
+            </div>
+            <textarea id="latex-output" placeholder="LaTeX code will appear here..."></textarea>
+            <div id="mathjax-output" class="mathjax-render"></div>
+            <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <p>Processing...</p>
+            </div>
+        </div>
+    </div>
+    <script src="../static/app.js"></script>
+</body>
+</html>
