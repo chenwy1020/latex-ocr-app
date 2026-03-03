@@ -1,1 +1,18 @@
 .worktrees/
+
+# Build artifacts
+build/
+dist/
+*.spec
+*.exe
+_launcher.py
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Test images
+*.png
+*.jpg
+*.jpeg
