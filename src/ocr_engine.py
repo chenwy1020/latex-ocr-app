@@ -16,7 +16,24 @@ class OcrEngine:
                 ssl._create_default_https_context = ssl._create_unverified_context
             except Exception:
                 pass
-            os.environ.setdefault('HF_HUB_DISABLE_SYMLINKS_WARNING', '1')
+
+            # Disable SSL verification for huggingface_hub / requests
+            os.environ['CURL_CA_BUNDLE'] = ''
+            os.environ['REQUESTS_CA_BUNDLE'] = ''
+            os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
+
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+            # Patch requests to skip SSL verification
+            import requests
+            _original_request = requests.Session.request.__wrapped__ if hasattr(requests.Session.request, '__wrapped__') else requests.Session.request
+            def _patched_request(self, *args, **kwargs):
+                kwargs['verify'] = False
+                return _original_request(self, *args, **kwargs)
+            if not getattr(requests.Session.request, '_ssl_patched', False):
+                requests.Session.request = _patched_request
+                requests.Session.request._ssl_patched = True
 
             from texify.model.model import load_model
             from texify.model.processor import load_processor
@@ -76,17 +93,22 @@ class OcrEngine:
         ends.append(content_rows[-1])
         return list(zip(starts, ends))
 
-    def _crop_line(self, image, top, bottom, pad_v=20, pad_h=10):
-        """Crop a single line from the image with padding."""
+    def _crop_line(self, image, top, bottom, crop_top, crop_bottom, pad_h=10):
+        """Crop a single line from the image with explicit vertical boundaries.
+
+        Args:
+            top, bottom: content row range (from _find_content_lines)
+            crop_top, crop_bottom: actual vertical crop boundaries (pre-computed)
+            pad_h: horizontal padding around detected content columns
+        """
         gray = np.array(image.convert('L'))
-        row_slice = gray[top:bottom + 1, :]
+        # Use the full crop region to detect horizontal content
+        row_slice = gray[crop_top:crop_bottom + 1, :]
         col_mask = row_slice.min(axis=0) < 200
         cols = np.where(col_mask)[0]
         left = max(0, cols[0] - pad_h) if len(cols) > 0 else 0
         right = min(image.width, cols[-1] + pad_h) if len(cols) > 0 else image.width
 
-        crop_top = max(0, top - pad_v)
-        crop_bottom = min(image.height, bottom + pad_v)
         line_img = image.crop((left, crop_top, right, crop_bottom))
 
         # Scale up small lines for better recognition
@@ -146,30 +168,62 @@ class OcrEngine:
         return any(ind in latex for ind in math_indicators)
 
     def predict(self, image):
-        """Run OCR on an image. Handles multi-line screenshots automatically."""
+        """Run OCR on an image.
+
+        Strategy: whole-image first, line-splitting fallback.
+        1. Minimal preprocess (RGB + crop whitespace)
+        2. Feed whole image to Texify
+        3. If result is valid → return directly (preserves multi-line environments)
+        4. If invalid (e.g. Chinese text confuses the model) → fall back to
+           line splitting to isolate formula lines from text lines
+        """
         try:
             self._ensure_model()
             image = self._preprocess(image)
 
-            # Check for multiple content lines first
+            # --- Strategy 1: whole image ---
+            whole_result = self._infer(image)
+            if self._looks_valid(whole_result):
+                return whole_result
+
+            # --- Strategy 2: line-splitting fallback ---
             gray = np.array(image.convert('L'))
             lines = self._find_content_lines(gray)
 
             if len(lines) > 1:
-                # Multi-line image: process each line separately
+                midpoints = []
+                for i in range(len(lines) - 1):
+                    midpoints.append((lines[i][1] + lines[i + 1][0]) // 2)
+
                 valid_results = []
-                for top, bottom in lines:
-                    line_img = self._crop_line(image, top, bottom)
+                for i, (top, bottom) in enumerate(lines):
+                    crop_top = midpoints[i - 1] if i > 0 else max(0, top - 20)
+                    crop_bottom = (midpoints[i] if i < len(lines) - 1
+                                   else min(gray.shape[0], bottom + 20))
+
+                    line_img = self._crop_line(image, top, bottom,
+                                               crop_top, crop_bottom)
                     line_result = self._infer(line_img)
                     if self._looks_valid(line_result):
-                        valid_results.append(line_result)
-                if valid_results:
-                    return '\n'.join(valid_results)
+                        # Deduplicate: skip if one result is a substring of another
+                        is_dup = False
+                        for prev in valid_results:
+                            if prev in line_result or line_result in prev:
+                                is_dup = True
+                                break
+                        if not is_dup:
+                            valid_results.append(line_result)
 
-            # Single line or no valid line results: try whole image
-            result = self._infer(image)
-            if result and result.strip():
-                return result.strip()
+                if valid_results:
+                    if len(valid_results) == 1:
+                        return valid_results[0]
+                    return (r'\begin{gathered}' +
+                            r' \\ '.join(valid_results) +
+                            r'\end{gathered}')
+
+            # --- Fallback: return raw whole-image result ---
+            if whole_result and whole_result.strip():
+                return whole_result.strip()
 
             return "识别失败，请尝试更清晰的图片"
         except Exception as e:

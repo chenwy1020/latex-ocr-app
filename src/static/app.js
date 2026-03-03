@@ -1,18 +1,17 @@
 // Configuration for MathJax
 // We check if MathJax is already defined to avoid overwriting the library if it loaded first.
-if (typeof MathJax === 'undefined') {
-    window.MathJax = {
-        tex: {
-            inlineMath: [['$', '$'], ['\\(', '\\)']],
-            displayMath: [['$$', '$$'], ['\\[', '\\]']]
-        },
-        svg: {
-            fontCache: 'global'
-        }
-    };
-} else {
-    console.log('MathJax already loaded. Skipping configuration.');
-}
+window.MathJax = {
+    tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    },
+    chtml: {
+        scale: 1.2
+    },
+    startup: {
+        typeset: false
+    }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('file-input');
