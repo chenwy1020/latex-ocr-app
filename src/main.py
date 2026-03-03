@@ -1,6 +1,7 @@
 import sys
 import os
 import webview
+from flask import Flask, render_template
 
 # Add the project root to sys.path to allow imports from src
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -10,14 +11,18 @@ if project_root not in sys.path:
 
 from src.api import Api
 
+# Create Flask app with correct template and static folders
+app = Flask(__name__,
+            template_folder=os.path.join(current_dir, 'templates'),
+            static_folder=os.path.join(current_dir, 'static'))
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
 def main():
     api = Api()
-    # We assume index.html will be in the src directory or project root.
-    # Using absolute path to src/index.html if it exists, otherwise relative 'index.html'
-    index_path = os.path.join(current_dir, 'index.html')
-    url = index_path if os.path.exists(index_path) else 'index.html'
-    
-    webview.create_window('LaTeX OCR', url=url, js_api=api)
+    webview.create_window('LaTeX OCR', app, js_api=api, width=1000, height=700)
     webview.start(debug=True)
 
 if __name__ == '__main__':
